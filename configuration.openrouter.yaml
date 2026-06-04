@@ -1,0 +1,95 @@
+api:
+  host: "0.0.0.0"
+  port: 10006
+  debug: true
+
+pipeline:
+  batch_time_budget: 14400
+  prompt_timeout: 600.0
+  use_planner: false          # king runs pure-multimodal: coder consumes the image directly
+
+benchmark: false              # no local GPU to benchmark when using OpenRouter
+warmup: false                 # skip startup warmup prompt (set true to pre-warm via OpenRouter)
+
+# Single remote client: OpenRouter. Backend is auto-detected as "openrouter"
+# from the non-local base_url. No local vLLM is launched.
+llm_clients:
+  openrouter:
+    enabled: true
+    base_url: "https://openrouter.ai/api/v1"
+    api_key_env: "OPENROUTER_API_KEY"
+
+# All LLM actors routed to OpenRouter, matching the king's model.
+# OpenRouter model id is the slug (lowercase), not the HF repo name.
+actors:
+  coder:
+    client: "openrouter"
+    model: "qwen/qwen3.5-397b-a17b"
+    workers: 16               # OpenRouter concurrency (was 128 for local vLLM); tune to your rate limit
+    queue_size: 64
+    max_tokens: 32768
+    temperature: 0.6
+    top_p: 0.95
+    top_k: 20
+    min_p: 0.0
+    presence_penalty: 0.0
+    repetition_penalty: 1.0
+    seed: 42
+    multimodal: true          # required when use_planner=false
+    ensemble_size: 10         # king's K-of-N generation (deep version)
+    ensemble_temperature: 0.6
+  critic:
+    client: "openrouter"
+    model: "qwen/qwen3.5-397b-a17b"
+    workers: 16
+    queue_size: 64
+    max_tokens: 32768
+    temperature: 0.6
+    top_p: 0.95
+    top_k: 20
+    min_p: 0.0
+    presence_penalty: 0.0
+    repetition_penalty: 1.0
+    seed: 42
+    reasoning_effort: "medium"
+    ensemble_size: 1
+  judge:
+    client: "openrouter"
+    model: "qwen/qwen3.5-397b-a17b"
+    workers: 16
+    queue_size: 64
+    max_tokens: 1024
+    temperature: 0.0
+    seed: 42
+  patcher:
+    workers: 16
+    queue_size: 64
+  checker:
+    workers: 16
+    queue_size: 32
+  renderer:
+    workers: 8
+    queue_size: 32
+
+event_bus:
+  max_iter: 2
+  task_deadline_s: 3600
+  score_threshold: 0.55
+
+js_checker:
+  execution_timeout_ms: 5000
+  node_binary: "node"
+
+renderer:
+  sidecar_host: "127.0.0.1"
+  sidecar_port: 8003
+  startup_timeout_s: 60.0
+  request_timeout_s: 90.0
+  node_binary: "node"
+  img_size: 518
+  grid_gap: 5
+  bg_color: null
+  sidecar_count: 8
+  pool_size: 2
+  render_timeout_ms: 60000
+  protocol_timeout_ms: 60000
